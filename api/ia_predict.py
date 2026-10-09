@@ -4,36 +4,40 @@ from torchvision import transforms
 from torch import nn
 from PIL import Image
 
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 idx_para_classe = {
     0: "benigno",
-    1: "maligno"
+    1: "maligno" 
 }
 
 transform = transforms.Compose([
     transforms.Resize((300, 300)),
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
 ])
-
 
 def carregar_modelo():
     model = torchvision.models.efficientnet_b3(weights="DEFAULT")
+    
+    # recriando a carcaça exatamente como foi treinada
+    model.classifier[0] = nn.Dropout(p=0.5, inplace=True)
     model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
 
+    # lendo o arquivo que geramos no último treino
     model.load_state_dict(
-        torch.load("model.pth", map_location=device)
+        torch.load("melhor_modelo.pth", map_location=device, weights_only=True)
     )
 
     model.to(device)
-    model.eval()
+    model.eval() # desliga o dropout para a previsão
 
     return model
 
-
 model = carregar_modelo()
-
 
 def definir_risco(classificacao, confianca):
     if classificacao == "maligno":
@@ -52,13 +56,13 @@ def definir_risco(classificacao, confianca):
 
     return "indefinido"
 
-
 def prever_lesao(caminho_imagem):
     imagem = Image.open(caminho_imagem).convert("RGB")
     imagem_tensor = transform(imagem).unsqueeze(0).to(device)
 
     with torch.no_grad():
         saida = model(imagem_tensor)
+            
         probabilidades = torch.softmax(saida, dim=1)
         confianca, indice_previsto = torch.max(probabilidades, dim=1)
 

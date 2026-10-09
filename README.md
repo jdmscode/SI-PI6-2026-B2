@@ -8,10 +8,14 @@ docker compose up -d --build
 docker stop $(docker ps -q)
 
 
-pytorch (versão GPU)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 --default-timeout=1000 --no-cache-dir
+winget install Python.Python.3.12
+
+py -3.12 -m venv .venv                                                                                                                     
+.\.venv\Scripts\Activate.ps1                                     
+python --version
+
+python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 --no-cache-dir
 
 
-pip install tqdm // barra de progresso treinamento
-
+python -m pip install matplotlib seaborn scikit-learn
 

@@ -1,0 +1,74 @@
+Dispositivo utilizado: cuda
+{'benign': 0, 'malignant': 1}
+Imagens para treino: 7684
+Imagens para validação: 1921
+Imagens para teste: 952
+Época 1 concluída | Erro médio (Treino): 0.4797 | Erro médio (Validação): 0.3734
+O erro de validação caiu de inf para 0.3734. O modelo melhorou, salvando arquivo
+Época 2 concluída | Erro médio (Treino): 0.3425 | Erro médio (Validação): 0.3118
+O erro de validação caiu de 0.3734 para 0.3118. O modelo melhorou, salvando arquivo
+Época 3 concluída | Erro médio (Treino): 0.3035 | Erro médio (Validação): 0.2849
+O erro de validação caiu de 0.3118 para 0.2849. O modelo melhorou, salvando arquivo
+Época 4 concluída | Erro médio (Treino): 0.2800 | Erro médio (Validação): 0.2675
+O erro de validação caiu de 0.2849 para 0.2675. O modelo melhorou, salvando arquivo
+Época 5 concluída | Erro médio (Treino): 0.2698 | Erro médio (Validação): 0.2569
+O erro de validação caiu de 0.2675 para 0.2569. O modelo melhorou, salvando arquivo
+Época 6 concluída | Erro médio (Treino): 0.2602 | Erro médio (Validação): 0.2489
+O erro de validação caiu de 0.2569 para 0.2489. O modelo melhorou, salvando arquivo
+Época 7 concluída | Erro médio (Treino): 0.2531 | Erro médio (Validação): 0.2424
+O erro de validação caiu de 0.2489 para 0.2424. O modelo melhorou, salvando arquivo
+Época 8 concluída | Erro médio (Treino): 0.2482 | Erro médio (Validação): 0.2378
+O erro de validação caiu de 0.2424 para 0.2378. O modelo melhorou, salvando arquivo
+Época 9 concluída | Erro médio (Treino): 0.2424 | Erro médio (Validação): 0.2348
+O erro de validação caiu de 0.2378 para 0.2348. O modelo melhorou, salvando arquivo
+Época 10 concluída | Erro médio (Treino): 0.2418 | Erro médio (Validação): 0.2293
+O erro de validação caiu de 0.2348 para 0.2293. O modelo melhorou, salvando arquivo
+Época 11 concluída | Erro médio (Treino): 0.2378 | Erro médio (Validação): 0.2262
+O erro de validação caiu de 0.2293 para 0.2262. O modelo melhorou, salvando arquivo
+Época 12 concluída | Erro médio (Treino): 0.2323 | Erro médio (Validação): 0.2230
+O erro de validação caiu de 0.2262 para 0.2230. O modelo melhorou, salvando arquivo
+Época 13 concluída | Erro médio (Treino): 0.2288 | Erro médio (Validação): 0.2217
+O erro de validação caiu de 0.2230 para 0.2217. O modelo melhorou, salvando arquivo
+Época 14 concluída | Erro médio (Treino): 0.2285 | Erro médio (Validação): 0.2187
+O erro de validação caiu de 0.2217 para 0.2187. O modelo melhorou, salvando arquivo
+Época 15 concluída | Erro médio (Treino): 0.2269 | Erro médio (Validação): 0.2166
+O erro de validação caiu de 0.2187 para 0.2166. O modelo melhorou, salvando arquivo
+Época 16 concluída | Erro médio (Treino): 0.2276 | Erro médio (Validação): 0.2148
+O erro de validação caiu de 0.2166 para 0.2148. O modelo melhorou, salvando arquivo
+Época 17 concluída | Erro médio (Treino): 0.2234 | Erro médio (Validação): 0.2128
+O erro de validação caiu de 0.2148 para 0.2128. O modelo melhorou, salvando arquivo
+Época 18 concluída | Erro médio (Treino): 0.2224 | Erro médio (Validação): 0.2107
+O erro de validação caiu de 0.2128 para 0.2107. O modelo melhorou, salvando arquivo
+Época 19 concluída | Erro médio (Treino): 0.2212 | Erro médio (Validação): 0.2108
+O modelo não melhorou. Contagem de limite: 1 de 3.
+Época 20 concluída | Erro médio (Treino): 0.2192 | Erro médio (Validação): 0.2079
+O erro de validação caiu de 0.2107 para 0.2079. O modelo melhorou, salvando arquivo
+finalizado com sucesso, arquivo 'melhor_modelo.pth'.
+
+Teste final
+
+Resultado do Teste Final: O modelo acertou 90.86% das imagens inéditas.
+Sensibilidade: 87.80%
+Especificidade: 94.25%
+AUC-ROC: 0.9656
+
+Matriz de confusão
+Eixo vertical: Realidade | Eixo horizontal: Previsão da IA
+
+[[426  26]
+ [ 61 439]]
+
+Relatório clínico
+              precision    recall  f1-score   support
+
+ Benigno (0)       0.87      0.94      0.91       452
+ Maligno (1)       0.94      0.88      0.91       500
+
+    accuracy                           0.91       952
+   macro avg       0.91      0.91      0.91       952
+weighted avg       0.91      0.91      0.91       952
+
+
+Gráfico visual salvo com sucesso como 'grafico_matriz_confusao.png'!
+
+Resultados da execução salvos em: resultado_melanoma_2026-10-09_18-34-30.txt
