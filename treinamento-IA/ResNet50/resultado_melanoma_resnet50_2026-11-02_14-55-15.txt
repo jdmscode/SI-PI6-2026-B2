@@ -1,0 +1,76 @@
+Dispositivo utilizado: cuda
+{'benign': 0, 'malignant': 1}
+Imagens para treino: 7684
+Imagens para validação: 1921
+Imagens para teste: 952
+Época 1 concluída | Erro médio (Treino): 0.5483 | Erro médio (Validação): 0.4479
+O erro de validação caiu de inf para 0.4479. Salvando modelo.
+Época 2 concluída | Erro médio (Treino): 0.4024 | Erro médio (Validação): 0.3703
+O erro de validação caiu de 0.4479 para 0.3703. Salvando modelo.
+Época 3 concluída | Erro médio (Treino): 0.3459 | Erro médio (Validação): 0.3332
+O erro de validação caiu de 0.3703 para 0.3332. Salvando modelo.
+Época 4 concluída | Erro médio (Treino): 0.3219 | Erro médio (Validação): 0.3127
+O erro de validação caiu de 0.3332 para 0.3127. Salvando modelo.
+Época 5 concluída | Erro médio (Treino): 0.3020 | Erro médio (Validação): 0.2974
+O erro de validação caiu de 0.3127 para 0.2974. Salvando modelo.
+Época 6 concluída | Erro médio (Treino): 0.2909 | Erro médio (Validação): 0.2867
+O erro de validação caiu de 0.2974 para 0.2867. Salvando modelo.
+Época 7 concluída | Erro médio (Treino): 0.2813 | Erro médio (Validação): 0.2788
+O erro de validação caiu de 0.2867 para 0.2788. Salvando modelo.
+Época 8 concluída | Erro médio (Treino): 0.2730 | Erro médio (Validação): 0.2723
+O erro de validação caiu de 0.2788 para 0.2723. Salvando modelo.
+Época 9 concluída | Erro médio (Treino): 0.2675 | Erro médio (Validação): 0.2664
+O erro de validação caiu de 0.2723 para 0.2664. Salvando modelo.
+Época 10 concluída | Erro médio (Treino): 0.2625 | Erro médio (Validação): 0.2618
+O erro de validação caiu de 0.2664 para 0.2618. Salvando modelo.
+Época 11 concluída | Erro médio (Treino): 0.2596 | Erro médio (Validação): 0.2582
+O erro de validação caiu de 0.2618 para 0.2582. Salvando modelo.
+Época 12 concluída | Erro médio (Treino): 0.2531 | Erro médio (Validação): 0.2551
+O erro de validação caiu de 0.2582 para 0.2551. Salvando modelo.
+Época 13 concluída | Erro médio (Treino): 0.2490 | Erro médio (Validação): 0.2517
+O erro de validação caiu de 0.2551 para 0.2517. Salvando modelo.
+Época 14 concluída | Erro médio (Treino): 0.2487 | Erro médio (Validação): 0.2496
+O erro de validação caiu de 0.2517 para 0.2496. Salvando modelo.
+Época 15 concluída | Erro médio (Treino): 0.2423 | Erro médio (Validação): 0.2465
+O erro de validação caiu de 0.2496 para 0.2465. Salvando modelo.
+Época 16 concluída | Erro médio (Treino): 0.2443 | Erro médio (Validação): 0.2448
+O erro de validação caiu de 0.2465 para 0.2448. Salvando modelo.
+Época 17 concluída | Erro médio (Treino): 0.2413 | Erro médio (Validação): 0.2430
+O erro de validação caiu de 0.2448 para 0.2430. Salvando modelo.
+Época 18 concluída | Erro médio (Treino): 0.2378 | Erro médio (Validação): 0.2417
+O erro de validação caiu de 0.2430 para 0.2417. Salvando modelo.
+Época 19 concluída | Erro médio (Treino): 0.2381 | Erro médio (Validação): 0.2397
+O erro de validação caiu de 0.2417 para 0.2397. Salvando modelo.
+Época 20 concluída | Erro médio (Treino): 0.2389 | Erro médio (Validação): 0.2380
+O erro de validação caiu de 0.2397 para 0.2380. Salvando modelo.
+Treinamento finalizado.
+
+Teste final
+
+Resultado do Teste Final: 90.97% de acurácia.
+Sensibilidade: 87.60%
+Especificidade: 94.69%
+AUC-ROC: 0.9610
+
+Matriz de confusão - RESNET50
+Eixo vertical: Realidade | Eixo horizontal: Previsão da IA
+
+[[428  24]
+ [ 62 438]]
+
+Relatório de classificação
+               precision    recall  f1-score   support
+
+   benign (0)       0.87      0.95      0.91       452
+malignant (1)       0.95      0.88      0.91       500
+
+     accuracy                           0.91       952
+    macro avg       0.91      0.91      0.91       952
+ weighted avg       0.91      0.91      0.91       952
+
+
+Gráfico da matriz de confusão salvo.
+
+Gráfico das perdas salvo.
+
+Resultados salvos em: resultado_melanoma_resnet50_2026-11-02_14-55-15.txt

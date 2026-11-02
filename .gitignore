@@ -28,3 +28,7 @@ melanoma_cancer_dataset/
 
 #venv
 venv/
+
+#files
+*.pth
+*.pt

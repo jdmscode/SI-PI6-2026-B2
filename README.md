@@ -94,43 +94,6 @@ Durante a execução, o código registra as métricas por época. Ao final, os a
 
 Os arquivos são gravados no diretório de execução. Não versione o dataset, ambientes virtuais, logs pessoais ou arquivos de pesos grandes sem avaliar antes o tamanho, as licenças e as regras do repositório.
 
-## Resultados experimentais
-
-Em uma execução registrada, foram utilizados os seguintes volumes:
-
-| Conjunto | Quantidade de imagens |
-|---|---:|
-| Treinamento | 7.684 |
-| Validação | 1.921 |
-| Teste | 952 |
-| **Total avaliado/particionado** | **10.557** |
-
-Resultados no conjunto de teste dessa execução:
-
-| Métrica | Resultado |
-|---|---:|
-| Acurácia | 90,65% |
-| Especificidade | 95,58% |
-| AUC-ROC | 0,9667 |
-| Precisão — classe benigna | 0,86 |
-| Recall — classe benigna | 0,96 |
-| F1-score — classe benigna | 0,91 |
-| Precisão — classe maligna | 0,96 |
-| Recall — classe maligna | 0,86 |
-| F1-score — classe maligna | 0,91 |
-
-Matriz de confusão da execução:
-
-```text
-                 Previsão
-              Benigno  Maligno
-Real benigno     432       20
-Real maligno      69      431
-```
-
-A matriz mostra que 69 imagens malignas foram classificadas como benignas e 20 imagens benignas foram classificadas como malignas. Esse tipo de erro deve ser discutido na avaliação do projeto, especialmente considerando que o modelo não foi validado para uso clínico.
-
-Os resultados são referentes a uma execução específica e podem variar conforme a divisão dos dados, as versões das bibliotecas e o ambiente de execução. Eles não garantem desempenho equivalente em outros conjuntos de imagens.
 
 ## Autoria
 
