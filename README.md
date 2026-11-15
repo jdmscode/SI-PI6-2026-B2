@@ -95,6 +95,34 @@ Durante a execução, o código registra as métricas por época. Ao final, os a
 Os arquivos são gravados no diretório de execução. Não versione o dataset, ambientes virtuais, logs pessoais ou arquivos de pesos grandes sem avaliar antes o tamanho, as licenças e as regras do repositório.
 
 
+## API — ensemble de classificação
+
+A API em [`api/`](api/) carrega três checkpoints em [`api/modelos/`](api/modelos/):
+
+- `melhor_modelo_efficientnetb3.pth`
+- `melhor_modelo_resnet50.pth`
+- `melhor_modelo_swin_t.pth`
+
+Variável opcional `MODELS_DIR` (padrão: `modelos`, relativo ao diretório `api/`).
+
+Entidades SQLAlchemy ficam em [`api/db_models.py`](api/db_models.py) (evita conflito com a pasta de pesos).
+
+### Rotas de inferência
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/ia/avaliar/hard-voting` | Imagem → resultados por modelo + ensemble hard |
+| `POST` | `/ia/avaliar/soft-voting` | Imagem → resultados por modelo + ensemble soft |
+| `POST` | `/lesoes/analisar` | Salva lesão com `resultado_ia` completo (hard + soft + 3 modelos) |
+
+Campos legados da lesão (`classificacao`, `confianca`, `risco`) refletem o **soft voting** para listagens.
+
+A coluna `resultado_ia` (JSON) é criada automaticamente na subida da API se ainda não existir. Em bancos já provisionados manualmente:
+
+```sql
+ALTER TABLE lesoes ADD COLUMN resultado_ia JSON NULL;
+```
+
 ## Autoria
 
 Projeto acadêmico desenvolvido para fins de estudo e pesquisa em visão computacional e classificação de imagens dermatológicas.

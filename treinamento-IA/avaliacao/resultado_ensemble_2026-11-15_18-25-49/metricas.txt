@@ -1,0 +1,120 @@
+Dispositivo: cpu
+Teste: /tmp/teste
+Imagens: 952
+Classes: {'benign': 0, 'malignant': 1}
+
+
+Modelo individual — EfficientNet-B3
+Acurácia: 90.76%
+Sensibilidade: 87.60%
+Especificidade: 94.25%
+AUC-ROC: 0.9657
+
+Matriz de confusão
+Eixo vertical: Realidade | Eixo horizontal: Previsão
+
+[[426  26]
+ [ 62 438]]
+
+Relatório de classificação
+               precision    recall  f1-score   support
+
+   benign (0)       0.87      0.94      0.91       452
+malignant (1)       0.94      0.88      0.91       500
+
+     accuracy                           0.91       952
+    macro avg       0.91      0.91      0.91       952
+ weighted avg       0.91      0.91      0.91       952
+
+
+Modelo individual — ResNet50
+Acurácia: 90.97%
+Sensibilidade: 87.60%
+Especificidade: 94.69%
+AUC-ROC: 0.9610
+
+Matriz de confusão
+Eixo vertical: Realidade | Eixo horizontal: Previsão
+
+[[428  24]
+ [ 62 438]]
+
+Relatório de classificação
+               precision    recall  f1-score   support
+
+   benign (0)       0.87      0.95      0.91       452
+malignant (1)       0.95      0.88      0.91       500
+
+     accuracy                           0.91       952
+    macro avg       0.91      0.91      0.91       952
+ weighted avg       0.91      0.91      0.91       952
+
+
+Modelo individual — Swin-T
+Acurácia: 91.91%
+Sensibilidade: 89.00%
+Especificidade: 95.13%
+AUC-ROC: 0.9691
+
+Matriz de confusão
+Eixo vertical: Realidade | Eixo horizontal: Previsão
+
+[[430  22]
+ [ 55 445]]
+
+Relatório de classificação
+               precision    recall  f1-score   support
+
+   benign (0)       0.89      0.95      0.92       452
+malignant (1)       0.95      0.89      0.92       500
+
+     accuracy                           0.92       952
+    macro avg       0.92      0.92      0.92       952
+ weighted avg       0.92      0.92      0.92       952
+
+
+Ensemble — hard voting (maioria)
+Acurácia: 91.28%
+Sensibilidade: 87.60%
+Especificidade: 95.35%
+AUC-ROC: 0.9402
+
+Matriz de confusão
+Eixo vertical: Realidade | Eixo horizontal: Previsão
+
+[[431  21]
+ [ 62 438]]
+
+Relatório de classificação
+               precision    recall  f1-score   support
+
+   benign (0)       0.87      0.95      0.91       452
+malignant (1)       0.95      0.88      0.91       500
+
+     accuracy                           0.91       952
+    macro avg       0.91      0.91      0.91       952
+ weighted avg       0.92      0.91      0.91       952
+
+
+Ensemble — soft voting (média das probabilidades)
+Acurácia: 91.39%
+Sensibilidade: 87.20%
+Especificidade: 96.02%
+AUC-ROC: 0.9689
+
+Matriz de confusão
+Eixo vertical: Realidade | Eixo horizontal: Previsão
+
+[[434  18]
+ [ 64 436]]
+
+Relatório de classificação
+               precision    recall  f1-score   support
+
+   benign (0)       0.87      0.96      0.91       452
+malignant (1)       0.96      0.87      0.91       500
+
+     accuracy                           0.91       952
+    macro avg       0.92      0.92      0.91       952
+ weighted avg       0.92      0.91      0.91       952
+

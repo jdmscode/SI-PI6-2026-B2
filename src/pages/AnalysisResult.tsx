@@ -8,7 +8,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
+import {
+  type AnaliseLesaoResponse,
+  type ModoEnsemble,
+  type ResultadoModeloIA,
+  ORDEM_MODELOS,
+  getResultadoGeral,
+} from "@/types/ia";
 
 const abcdeItems = [
   { key: "A", title: "Assimetria", detected: "Detectada", severity: "high" },
@@ -18,48 +26,184 @@ const abcdeItems = [
   { key: "E", title: "Evolução", detected: "Relatada", severity: "high" },
 ];
 
+function labelDiagnostico(classificacao: string) {
+  return classificacao === "maligno" ? "Melanoma Maligno" : "Lesão Benigna";
+}
+
+function GaugeConfianca({
+  percent,
+  isAltoRisco,
+  size = "lg",
+}: {
+  percent: number;
+  isAltoRisco: boolean;
+  size?: "lg" | "sm";
+}) {
+  const r = size === "lg" ? 80 : 52;
+  const stroke = size === "lg" ? 12 : 8;
+  const view = size === "lg" ? 192 : 128;
+  const cx = view / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - percent / 100);
+  const textClass = size === "lg" ? "text-4xl" : "text-2xl";
+
+  return (
+    <div
+      className={`relative flex items-center justify-center ${
+        size === "lg" ? "w-44 h-44" : "w-28 h-28"
+      }`}
+    >
+      <svg className="w-full h-full transform -rotate-90" viewBox={`0 0 ${view} ${view}`}>
+        <circle
+          cx={cx}
+          cy={cx}
+          r={r}
+          stroke="hsl(var(--muted))"
+          strokeWidth={stroke}
+          fill="transparent"
+        />
+        <circle
+          cx={cx}
+          cy={cx}
+          r={r}
+          stroke={isAltoRisco ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+          strokeWidth={stroke}
+          fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`${textClass} font-bold text-foreground tabular-nums`}>{percent}%</span>
+        {size === "lg" && (
+          <span className="text-xs font-bold uppercase text-muted-foreground">de certeza</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PainelVotos({
+  votos,
+  vencedor,
+}: {
+  votos: { benigno: number; maligno: number };
+  vencedor: string;
+}) {
+  const itens = [
+    { key: "benigno", label: "Benigno", valor: votos.benigno },
+    { key: "maligno", label: "Maligno", valor: votos.maligno },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 w-full">
+      {itens.map((item) => {
+        const ativo = item.key === vencedor;
+        const maligno = item.key === "maligno";
+        return (
+          <div
+            key={item.key}
+            className={`rounded-xl border px-3 py-4 ${
+              ativo
+                ? maligno
+                  ? "border-destructive bg-destructive/10"
+                  : "border-primary bg-primary/10"
+                : "border-border bg-muted/30"
+            }`}
+          >
+            <p
+              className={`text-5xl font-black tabular-nums leading-none ${
+                ativo
+                  ? maligno
+                    ? "text-destructive"
+                    : "text-primary"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {item.valor}
+            </p>
+            <p className="text-[11px] font-bold uppercase tracking-wider mt-2">{item.label}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {item.valor === 1 ? "voto" : "votos"}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CardModelo({ modelo }: { modelo: ResultadoModeloIA }) {
+  const isMaligno = modelo.classificacao === "maligno";
+  const percent = Math.round(modelo.confianca * 100);
+
+  return (
+    <Card className="p-4 shadow-soft border-border flex flex-col items-center text-center gap-2">
+      <Badge variant="outline" className="text-[10px] font-mono">
+        {modelo.nome_exibicao}
+      </Badge>
+      <p
+        className={`text-sm font-bold ${isMaligno ? "text-destructive" : "text-primary"}`}
+      >
+        {labelDiagnostico(modelo.classificacao)}
+      </p>
+      <GaugeConfianca percent={percent} isAltoRisco={isMaligno} size="sm" />
+      <p className="text-[10px] text-muted-foreground">
+        Benigno {Math.round(modelo.probabilidades.benigno * 100)}% · Maligno{" "}
+        {Math.round(modelo.probabilidades.maligno * 100)}%
+      </p>
+    </Card>
+  );
+}
+
 export default function AnalysisResult() {
   const navigate = useNavigate();
   const location = useLocation();
   const { lesaoId } = useParams();
 
   const [loading, setLoading] = useState(true);
+  const [modoEnsemble, setModoEnsemble] = useState<ModoEnsemble>("soft");
   const [validatedItems, setValidatedItems] = useState<Record<string, boolean>>({});
   const [parecerMedico, setParecerMedico] = useState("");
-  const [loadedAnalysis, setLoadedAnalysis] = useState<any | null>(null);
+  const [loadedAnalysis, setLoadedAnalysis] = useState<AnaliseLesaoResponse | null>(null);
 
-  const stateAnalysisResult = location.state?.analysisResult;
-  const imagemPreview = location.state?.imagemPreview;
+  const stateAnalysisResult = location.state?.analysisResult as AnaliseLesaoResponse | undefined;
+  const imagemPreview = location.state?.imagemPreview as string | undefined;
   const analysisResult = stateAnalysisResult || loadedAnalysis;
 
   const [vereditoMedico, setVereditoMedico] = useState<string | null>(null);
 
-  const imageSrc =
-    imagemPreview ||
-    (analysisResult?.imagem_path
-      ? `http://localhost:8000/${analysisResult.imagem_path.replace(/^\/?/, "")}`
-      : null);
+  const imagemServidor = analysisResult?.imagem_path
+    ? `http://localhost:8000/${analysisResult.imagem_path.replace(/\\/g, "/").replace(/^\/+/, "")}`
+    : null;
+  const [imageSrc, setImageSrc] = useState<string | null>(imagemServidor || imagemPreview || null);
 
   useEffect(() => {
-  const fetchLesao = async () => {
-    if (!lesaoId || analysisResult) return;
+    setImageSrc(imagemServidor || imagemPreview || null);
+  }, [imagemServidor, imagemPreview]);
 
-    try {
-      const response = await fetch(`http://localhost:8000/lesoes/${lesaoId}`);
+  useEffect(() => {
+    const fetchLesao = async () => {
+      if (!lesaoId || analysisResult) return;
 
-      if (!response.ok) {
-        throw new Error("Erro ao buscar lesão");
+      try {
+        const response = await fetch(`http://localhost:8000/lesoes/${lesaoId}`);
+
+        if (!response.ok) {
+          throw new Error("Erro ao buscar lesão");
+        }
+
+        const result = (await response.json()) as AnaliseLesaoResponse;
+        setLoadedAnalysis(result);
+      } catch (error) {
+        console.error(error);
       }
+    };
 
-      const result = await response.json();
-      setLoadedAnalysis(result);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  fetchLesao();
-}, [lesaoId, analysisResult]);
+    fetchLesao();
+  }, [lesaoId, analysisResult]);
 
   useEffect(() => {
     if (!analysisResult) return;
@@ -75,7 +219,6 @@ export default function AnalysisResult() {
     if (analysisResult.veredito_medico) {
       setVereditoMedico(analysisResult.veredito_medico);
     }
-
   }, [analysisResult]);
 
   useEffect(() => {
@@ -113,14 +256,20 @@ export default function AnalysisResult() {
             <span className="absolute inset-0 rounded-full border-2 border-primary/30 animate-pulse-ring" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Processando na Rede Neural...</h1>
-            <p className="text-sm text-muted-foreground">Modelo EfficientNetB3 · Análise em andamento</p>
+            <h1 className="text-xl font-bold text-foreground">Processando ensemble...</h1>
+            <p className="text-sm text-muted-foreground">
+              EfficientNet-B3 · ResNet50 · Swin-T
+            </p>
           </div>
         </div>
 
         <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-4"><Skeleton className="h-72 rounded-2xl" /></div>
-          <div className="col-span-8"><Skeleton className="h-72 rounded-2xl" /></div>
+          <div className="col-span-4">
+            <Skeleton className="h-72 rounded-2xl" />
+          </div>
+          <div className="col-span-8">
+            <Skeleton className="h-72 rounded-2xl" />
+          </div>
         </div>
 
         <Skeleton className="h-24 rounded-2xl" />
@@ -129,18 +278,14 @@ export default function AnalysisResult() {
     );
   }
 
-  const classificacao = analysisResult.classificacao;
-  const risco = analysisResult.risco;
-  const confianca = Number(analysisResult.confianca ?? 0);
-
-  const certaintyPercent = Math.round(confianca * 100);
-  const isMaligno = classificacao === "maligno";
-  const isAltoRisco = risco === "alto" || isMaligno;
-
-  const diagnosticLabel = isMaligno ? "Melanoma Maligno" : "Lesão Benigna";
-
-  const circumference = 2 * Math.PI * 80;
-  const offset = circumference * (1 - certaintyPercent / 100);
+  const geral = getResultadoGeral(analysisResult!, modoEnsemble);
+  const certaintyPercent = Math.round(geral.confianca * 100);
+  const votosHard = analysisResult?.resultado_ia?.ensemble.hard.votos;
+  const isMaligno = geral.classificacao === "maligno";
+  const isAltoRisco = geral.risco === "alto" || isMaligno;
+  const diagnosticLabel = labelDiagnostico(geral.classificacao);
+  const temEnsemble = Boolean(analysisResult?.resultado_ia?.modelos);
+  const modelos = analysisResult?.resultado_ia?.modelos;
 
   const handleSaveMedicalReview = async () => {
     if (!analysisResult?.id) {
@@ -178,7 +323,7 @@ export default function AnalysisResult() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -188,7 +333,7 @@ export default function AnalysisResult() {
         </button>
 
         <Badge variant="outline" className="text-[10px] font-mono">
-          Modelo: EfficientNetB3 · v2.1
+          Ensemble · 3 modelos
         </Badge>
       </div>
 
@@ -200,9 +345,30 @@ export default function AnalysisResult() {
       >
         <div className="col-span-12 lg:col-span-4">
           <Card className="shadow-soft border-border h-full flex flex-col items-center justify-center p-6 text-center">
-            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">
-              Resultado da IA
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">
+              Resultado geral da IA
             </h3>
+
+            <div className="flex items-center gap-2 mb-4">
+              <span
+                className={`text-[10px] font-medium ${
+                  modoEnsemble === "hard" ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                Hard voting
+              </span>
+              <Switch
+                checked={modoEnsemble === "soft"}
+                onCheckedChange={(checked) => setModoEnsemble(checked ? "soft" : "hard")}
+              />
+              <span
+                className={`text-[10px] font-medium ${
+                  modoEnsemble === "soft" ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                Soft voting
+              </span>
+            </div>
 
             <div
               className={`text-2xl font-black mb-2 ${
@@ -213,45 +379,21 @@ export default function AnalysisResult() {
             </div>
 
             <p className="text-xs text-muted-foreground mb-5">
-              Classificação estimada pelo modelo
+              {modoEnsemble === "hard"
+                ? "Maioria simples entre os três modelos"
+                : "Média das probabilidades dos três modelos"}
             </p>
 
-            <div className="relative w-44 h-44 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 192 192">
-                <circle
-                  cx="96"
-                  cy="96"
-                  r="80"
-                  stroke="hsl(var(--muted))"
-                  strokeWidth="12"
-                  fill="transparent"
-                />
-                <circle
-                  cx="96"
-                  cy="96"
-                  r="80"
-                  stroke={isAltoRisco ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
-                  strokeWidth="12"
-                  fill="transparent"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={offset}
-                  strokeLinecap="round"
-                  className="transition-all duration-1000 ease-out"
-                />
-              </svg>
-
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-bold text-foreground tabular-nums">
-                  {certaintyPercent}%
-                </span>
-                <span className="text-xs font-bold uppercase text-muted-foreground">
-                  de certeza
-                </span>
-              </div>
-            </div>
+            {modoEnsemble === "hard" && votosHard ? (
+              <PainelVotos votos={votosHard} vencedor={geral.classificacao} />
+            ) : (
+              <GaugeConfianca percent={certaintyPercent} isAltoRisco={isAltoRisco} size="lg" />
+            )}
 
             <p className="mt-5 text-xs text-muted-foreground leading-relaxed">
-              A porcentagem indica o grau de confiança da IA nessa classificação.
+              {modoEnsemble === "hard"
+                ? "O número em destaque é a quantidade de modelos que votaram em cada classe."
+                : "A porcentagem indica o grau de confiança do ensemble nessa classificação."}
             </p>
           </Card>
         </div>
@@ -262,7 +404,6 @@ export default function AnalysisResult() {
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                 Imagem da Lesão
               </h3>
-              <Badge variant="outline" className="text-[10px]">EfficientNetB3</Badge>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -273,6 +414,11 @@ export default function AnalysisResult() {
                       src={imageSrc}
                       alt="Imagem da lesão"
                       className="max-h-64 w-auto mx-auto object-contain rounded-lg"
+                      onError={() => {
+                        if (imagemServidor && imageSrc !== imagemServidor) {
+                          setImageSrc(imagemServidor);
+                        }
+                      }}
                     />
                   ) : (
                     <p className="text-xs text-muted-foreground">Imagem da lesão</p>
@@ -286,6 +432,25 @@ export default function AnalysisResult() {
           </Card>
         </div>
       </motion.div>
+
+      {temEnsemble && modelos && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">
+            Detalhamento por modelo
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {ORDEM_MODELOS.map((id) => {
+              const modelo = modelos[id];
+              if (!modelo) return null;
+              return <CardModelo key={id} modelo={modelo} />;
+            })}
+          </div>
+        </motion.div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -381,10 +546,9 @@ export default function AnalysisResult() {
       >
         <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
         <p className="text-xs text-foreground/80 leading-relaxed">
-          <strong>Aviso de Suporte à Decisão:</strong> Esta análise é gerada por algoritmos de aprendizado profundo
-          EfficientNetB3 e deve ser utilizada apenas como ferramenta auxiliar. O diagnóstico final, conduta cirúrgica
-          e laudo histopatológico são de responsabilidade exclusiva do médico assistente. A IA é uma ferramenta de
-          suporte à decisão — o diagnóstico definitivo é de responsabilidade médica.
+          <strong>Aviso de Suporte à Decisão:</strong> Esta análise combina EfficientNet-B3, ResNet50 e Swin-T
+          (hard e soft voting) e deve ser utilizada apenas como ferramenta auxiliar. O diagnóstico final, conduta
+          cirúrgica e laudo histopatológico são de responsabilidade exclusiva do médico assistente.
         </p>
       </motion.div>
     </div>
