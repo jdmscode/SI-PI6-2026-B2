@@ -1,3 +1,4 @@
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useRef, useEffect } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -5,11 +6,18 @@ import * as THREE from "three";
 interface CameraControllerProps {
   targetPosition: THREE.Vector3 | null;
   targetLookAt: THREE.Vector3 | null;
-  orbitControlsRef: React.RefObject<any>;
+  orbitControlsRef: React.RefObject<OrbitControlsImpl | null>;
   isZoomed: boolean;
   onAnimationComplete?: () => void;
 }
 
+export const DEFAULT_CAMERA_POSITION = new THREE.Vector3(0, 0.8, 3.2);
+export const DEFAULT_CAMERA_TARGET = new THREE.Vector3(0, 1.1, 0);
+
+/**
+ * Anima a câmera até a posição pedida orbitando em volta do alvo (coordenadas esféricas).
+ * Assim, ir da frente para as costas dá a volta no corpo em vez de atravessá-lo.
+ */
 export function CameraController({
   targetPosition,
   targetLookAt,
@@ -19,11 +27,11 @@ export function CameraController({
 }: CameraControllerProps) {
   const { camera } = useThree();
   const animating = useRef(false);
-  const hasTarget = targetPosition !== null && targetLookAt !== null;
-  const lerpFactor = 0.12;
+  const speed = 0.16;
 
-  const defaultPos = useRef(new THREE.Vector3(0, 0.8, 3.2));
-  const defaultTarget = useRef(new THREE.Vector3(0, 1.1, 0));
+  const cur = useRef(new THREE.Spherical());
+  const goal = useRef(new THREE.Spherical());
+  const offset = useRef(new THREE.Vector3());
 
   useEffect(() => {
     animating.current = true;
@@ -31,28 +39,39 @@ export function CameraController({
 
   useFrame(() => {
     if (!animating.current) return;
+    const ctrl = orbitControlsRef.current;
 
-    const goalPos = targetPosition || defaultPos.current;
-    const goalTarget = targetLookAt || defaultTarget.current;
+    const goalPos = targetPosition || DEFAULT_CAMERA_POSITION;
+    const goalTarget = targetLookAt || DEFAULT_CAMERA_TARGET;
 
-    camera.position.lerp(goalPos, lerpFactor);
+    const target = ctrl ? ctrl.target : goalTarget.clone();
+    target.lerp(goalTarget, speed);
 
-    if (orbitControlsRef.current) {
-      const ctrl = orbitControlsRef.current;
-      ctrl.target.lerp(goalTarget, lerpFactor);
-      ctrl.update();
-    }
+    cur.current.setFromVector3(offset.current.copy(camera.position).sub(target));
+    goal.current.setFromVector3(offset.current.copy(goalPos).sub(goalTarget));
+
+    let dTheta = goal.current.theta - cur.current.theta;
+    if (dTheta > Math.PI) dTheta -= 2 * Math.PI;
+    if (dTheta < -Math.PI) dTheta += 2 * Math.PI;
+
+    cur.current.theta += dTheta * speed;
+    cur.current.phi += (goal.current.phi - cur.current.phi) * speed;
+    cur.current.radius += (goal.current.radius - cur.current.radius) * speed;
+    cur.current.makeSafe();
+
+    camera.position.copy(target).add(offset.current.setFromSpherical(cur.current));
+    camera.lookAt(target);
+    ctrl?.update();
 
     const posDist = camera.position.distanceTo(goalPos);
-    const targetDist = orbitControlsRef.current
-      ? orbitControlsRef.current.target.distanceTo(goalTarget)
-      : 0;
+    const targetDist = target.distanceTo(goalTarget);
 
-    if (posDist < 0.02 && targetDist < 0.02) {
+    if (posDist < 0.01 && targetDist < 0.01) {
       animating.current = false;
-      if (orbitControlsRef.current) {
-        orbitControlsRef.current.target.copy(goalTarget);
-        orbitControlsRef.current.update();
+      camera.position.copy(goalPos);
+      if (ctrl) {
+        ctrl.target.copy(goalTarget);
+        ctrl.update();
       }
       onAnimationComplete?.();
     }
