@@ -1,7 +1,10 @@
-import { useState, useRef, Suspense, useCallback } from "react";
+import { useState, useRef, Suspense, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Environment } from "@react-three/drei";
-import { Upload, BrainCircuit, ZoomOut, Circle, Trash2 } from "lucide-react";
+import { OrbitControls } from "@react-three/drei";
+import { Upload, BrainCircuit, ZoomOut, Circle, Trash2, Check, Loader2, ImageIcon, X } from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/PageHeader";
+import { API_URL, authHeaders } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -9,120 +12,24 @@ import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useNavigate, useParams } from "react-router-dom";
 import { GLTFHumanModel, CircleData } from "@/components/GLTFHumanModel";
-import { CameraController } from "@/components/CameraController";
+import { CameraController, DEFAULT_CAMERA_TARGET } from "@/components/CameraController";
+import { BodyStage } from "@/components/BodyStage";
+import { LesionMarkers, lesoesParaPins, type LesionPin } from "@/components/LesionMarkers";
+import { ViewControls, VISTAS, zoomCamera, type VistaCorpo } from "@/components/ViewControls";
 import * as THREE from "three";
+import { meshNameMap, COMBINED_PARTS } from "@/lib/anatomia";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 
+// Só regiões que existem no modelo 3D, para que a escolha na lista possa ser marcada no corpo.
 const anatomyTree = [
-  { group: "Cabeça e Pescoço", parts: ["Cabeça", "Pescoço", "Face", "Couro Cabeludo", "Orelha Direita", "Orelha Esquerda"] },
-  { group: "Tronco", parts: ["Tórax", "Abdômen", "Quadril", "Dorso Superior", "Dorso Inferior", "Região Lombar"] },
+  { group: "Cabeça e pescoço", parts: ["Couro Cabeludo", "Testa", "Têmporas", "Face", "Bochechas", "Nariz", "Lábios", "Mandíbula", "Orelha Direita", "Orelha Esquerda", "Pescoço"] },
+  { group: "Tronco", parts: ["Tórax", "Abdômen", "Baixo Ventre", "Axilas", "Costas", "Lombar", "Glúteos", "Região Íntima"] },
   { group: "Membros Superiores", parts: ["Ombro Direito", "Ombro Esquerdo", "Braço Direito", "Braço Esquerdo", "Cotovelo Direito", "Cotovelo Esquerdo", "Antebraço Direito", "Antebraço Esquerdo", "Mão Direita", "Mão Esquerda"] },
   { group: "Membros Inferiores", parts: ["Coxa Direita", "Coxa Esquerda", "Joelho Direito", "Joelho Esquerdo", "Panturrilha Direita", "Panturrilha Esquerda", "Tornozelo Direito", "Tornozelo Esquerdo", "Pé Direito", "Pé Esquerdo"] },
 ];
 
-const meshNameMap: Record<string, string> = {
-  "01_Scalp": "Couro Cabeludo",
-  "02_Face": "Face",
-  "03_Neck": "Pescoço",
-  "05_Chest": "Tórax",
-  "06_Abdomen": "Abdômen",
-  "07_Lower_abdomen": "Baixo Ventre",
-  "08_Intimate_area": "Região Íntima",
-  "09_Arm_pits": "Axilas",
-  "20_Back": "Costas",
-  "21_Lower_back": "Lombar",
-  "22_Buttocks": "Glúteos",
-  "SA_01_FOREHEAD": "Testa",
-  "SA_02_TEMPLES": "Têmporas",
-  "SA_04_EYEBROWS": "Sobrancelhas",
-  "SA_05_EYELIDS": "Pálpebras",
-  "SA_06_EYES": "Olhos",
-  "SA_07_EYELASHES": "Cílios",
-  "SA_08_NOSE": "Nariz",
-  "SA_09_NOSTRILS": "Narinas",
-  "SA_10_CHEEKS": "Bochechas",
-  "SA_11_MOUTH": "Boca",
-  "SA_12_LIPS": "Lábios",
-  "SA_13_JAW": "Mandíbula",
-  "Model": "Corpo",
-  "04_Shoulders": "Ombros",
-  "04_Shoulders_L": "Ombro Esquerdo",
-  "04_Shoulders_R": "Ombro Direito",
-  "04_Shoulder_L": "Ombro Esquerdo",
-  "04_Shoulder_R": "Ombro Direito",
-  "10_Upper_arms": "Braços",
-  "10_Upper_arms_L": "Braço Esquerdo",
-  "10_Upper_arms_R": "Braço Direito",
-  "10_Upper_arm_L": "Braço Esquerdo",
-  "10_Upper_arm_R": "Braço Direito",
-  "11_Elbows": "Cotovelos",
-  "11_Elbows_L": "Cotovelo Esquerdo",
-  "11_Elbows_R": "Cotovelo Direito",
-  "11_Elbow_L": "Cotovelo Esquerdo",
-  "11_Elbow_R": "Cotovelo Direito",
-  "12_Fore_arms": "Antebraços",
-  "12_Fore_arms_L": "Antebraço Esquerdo",
-  "12_Fore_arms_R": "Antebraço Direito",
-  "12_Fore_arm_L": "Antebraço Esquerdo",
-  "12_Fore_arm_R": "Antebraço Direito",
-  "13_Hand_back": "Dorso das Mãos",
-  "13_Hand_back_L": "Mão Esquerda",
-  "13_Hand_back_R": "Mão Direita",
-  "14_Hand_palms": "Palmas das Mãos",
-  "14_Hand_palms_L": "Mão Esquerda",
-  "14_Hand_palms_R": "Mão Direita",
-  "13_Hand_L": "Mão Esquerda",
-  "13_Hand_R": "Mão Direita",
-  "14_Hand_palm_L": "Mão Esquerda",
-  "14_Hand_palm_R": "Mão Direita",
-  "15_Thighs": "Coxas",
-  "15_Thighs_L": "Coxa Esquerda",
-  "15_Thighs_R": "Coxa Direita",
-  "15_Thigh_L": "Coxa Esquerda",
-  "15_Thigh_R": "Coxa Direita",
-  "16_Knees": "Joelhos",
-  "16_Knees_L": "Joelho Esquerdo",
-  "16_Knees_R": "Joelho Direito",
-  "16_Knee_L": "Joelho Esquerdo",
-  "16_Knee_R": "Joelho Direito",
-  "17_Legs": "Panturrilhas",
-  "17_Legs_L": "Panturrilha Esquerda",
-  "17_Legs_R": "Panturrilha Direita",
-  "17_Leg_L": "Panturrilha Esquerda",
-  "17_Leg_R": "Panturrilha Direita",
-  "17_Calf_L": "Panturrilha Esquerda",
-  "17_Calf_R": "Panturrilha Direita",
-  "18_Ankles": "Tornozelos",
-  "18_Ankles_L": "Tornozelo Esquerdo",
-  "18_Ankles_R": "Tornozelo Direito",
-  "18_Ankle_L": "Tornozelo Esquerdo",
-  "18_Ankle_R": "Tornozelo Direito",
-  "19_Feet": "Pés",
-  "19_Feet_L": "Pé Esquerdo",
-  "19_Feet_R": "Pé Direito",
-  "19_Foot_L": "Pé Esquerdo",
-  "19_Foot_R": "Pé Direito",
-  "SA_03_EARS": "Orelhas",
-  "SA_03_EARS_L": "Orelha Esquerda",
-  "SA_03_EARS_R": "Orelha Direita",
-  "SA_03_EAR_L": "Orelha Esquerda",
-  "SA_03_EAR_R": "Orelha Direita",
-};
 
-const COMBINED_PARTS: Record<string, { left: string; right: string }> = {
-  "04_Shoulders": { left: "Ombro Esquerdo", right: "Ombro Direito" },
-  "10_Upper_arms": { left: "Braço Esquerdo", right: "Braço Direito" },
-  "11_Elbows": { left: "Cotovelo Esquerdo", right: "Cotovelo Direito" },
-  "12_Fore_arms": { left: "Antebraço Esquerdo", right: "Antebraço Direito" },
-  "13_Hand_back": { left: "Mão Esquerda", right: "Mão Direita" },
-  "14_Hand_palms": { left: "Mão Esquerda", right: "Mão Direita" },
-  "15_Thighs": { left: "Coxa Esquerda", right: "Coxa Direita" },
-  "16_Knees": { left: "Joelho Esquerdo", right: "Joelho Direito" },
-  "17_Legs": { left: "Panturrilha Esquerda", right: "Panturrilha Direita" },
-  "18_Ankles": { left: "Tornozelo Esquerdo", right: "Tornozelo Direito" },
-  "19_Feet": { left: "Pé Esquerdo", right: "Pé Direito" },
-  "SA_03_EARS": { left: "Orelha Esquerda", right: "Orelha Direita" },
-};
 
 export default function AnatomicMapper() {
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
@@ -137,23 +44,71 @@ export default function AnatomicMapper() {
   const [cameraPosition, setCameraPosition] = useState<THREE.Vector3 | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const orbitRef = useRef<any>(null);
+  const orbitRef = useRef<OrbitControlsImpl | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { id } = useParams();
 
   const pacienteId = id;
   const selectedPoint = points[0];
+  const [pacienteNome, setPacienteNome] = useState<string>("");
+  const [lesoesAnteriores, setLesoesAnteriores] = useState<LesionPin[]>([]);
+  const [vista, setVista] = useState<VistaCorpo | null>("frente");
+
+  useEffect(() => {
+    fetch(`${API_URL}/pacientes/${id}`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        if (d.paciente?.nome) setPacienteNome(d.paciente.nome);
+        setLesoesAnteriores(lesoesParaPins(d.lesoes));
+      })
+      .catch(() => undefined);
+  }, [id]);
+
+  const irParaVista = (v: VistaCorpo) => {
+    setVista(v);
+    setIsZoomed(false);
+    setSelectedZone(null);
+    setPoints([]);
+    setIsAnimating(true);
+    setCameraTarget(DEFAULT_CAMERA_TARGET.clone());
+    setCameraPosition(VISTAS[v].pos.clone());
+  };
+
+  const zoom = (fator: number) => {
+    const ctrl = orbitRef.current;
+    if (!ctrl) return;
+    const { pos, target } = zoomCamera(ctrl.object, ctrl.target, fator);
+    setIsAnimating(true);
+    setCameraTarget(target);
+    setCameraPosition(pos);
+  };
+
+  const etapas = [
+    { label: "Região", ok: !!selectedZone },
+    { label: "Ponto", ok: !!selectedPoint },
+    { label: "Imagem", ok: !!selectedFile },
+  ];
+  const faltando = etapas.find((e) => !e.ok);
 
   const handleSelectZone = useCallback((name: string) => {
     if (selectedZone === name && isZoomed) return;
 
     setSelectedZone(name);
     setIsZoomed(true);
+    setVista(null);
     setPoints([]);
   }, [selectedZone, isZoomed]);
 
+  const handleSelectFromList = (name: string) => {
+    handleSelectZone(name);
+    setIs3D(true);
+    toast.info(`${name} selecionada. Agora clique no ponto exato da lesão.`);
+  };
+
   const handleZoomOut = useCallback(() => {
+    setVista("frente");
     setCameraTarget(null);
     setCameraPosition(null);
     setIsAnimating(true);
@@ -198,7 +153,7 @@ export default function AnatomicMapper() {
     const newPoint: CircleData = {
       position: position.clone(),
       normal: normal.clone(),
-      radius: 0.01,
+      radius: 0.018,
       meshName,
       zoneName,
     };
@@ -209,13 +164,6 @@ export default function AnatomicMapper() {
       orbitRef.current.enabled = true;
     }
 
-    console.log("Ponto selecionado:", {
-      localizacao: zoneName,
-      meshName,
-      posicao_x: newPoint.position.x,
-      posicao_y: newPoint.position.y,
-      posicao_z: newPoint.position.z,
-    });
   }, []);
 
   const handleResizePoint = useCallback((_radius: number) => {
@@ -232,35 +180,42 @@ export default function AnatomicMapper() {
     setPoints((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-
-    if (file) {
-      setSelectedFile(file);
-      setUploadedImage(URL.createObjectURL(file));
+  const aceitarArquivo = (file?: File) => {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      toast.error("Formato não suportado. Envie uma imagem JPG, PNG ou WEBP.");
+      return;
     }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Imagem maior que 10 MB. Reduza o tamanho e tente de novo.");
+      return;
+    }
+    setSelectedFile(file);
+    setUploadedImage(URL.createObjectURL(file));
   };
+
+  const removerImagem = () => {
+    setSelectedFile(null);
+    setUploadedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => aceitarArquivo(e.target.files?.[0]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    const file = e.dataTransfer.files?.[0];
-
-    if (file) {
-      setSelectedFile(file);
-      setUploadedImage(URL.createObjectURL(file));
-    }
+    aceitarArquivo(e.dataTransfer.files?.[0]);
   };
 
   const handleSubmitAnalysis = async () => {
     if (!pacienteId) {
-      alert("Paciente inválido.");
+      toast.error("Paciente inválido.");
       return;
     }
 
     if (!selectedZone || !selectedPoint || !selectedFile) {
-      alert("Selecione uma região, marque um ponto e envie uma imagem.");
+      toast.error("Selecione a região, marque o ponto e envie a imagem.");
       return;
     }
 
@@ -278,8 +233,9 @@ export default function AnatomicMapper() {
       formData.append("posicao_z", String(selectedPoint.position.z));
       formData.append("imagem", selectedFile);
 
-      const response = await fetch("http://localhost:8000/lesoes/analisar", {
+      const response = await fetch(`${API_URL}/lesoes/analisar`, {
         method: "POST",
+        headers: authHeaders(),
         body: formData,
       });
 
@@ -290,30 +246,54 @@ export default function AnatomicMapper() {
 
       const result = await response.json();
 
-      console.log("Lesão salva com sucesso:", result);
-
-      navigate("/analysis", {
+      toast.success("Lesão registrada e analisada.");
+      navigate(`/analysis/${result.id}`, {
         state: {
           analysisResult: result,
           imagemPreview: uploadedImage,
+          pacienteId,
+          pacienteNome,
         },
       });
-    } catch (error) {
-      console.error("Erro ao enviar lesão:", error);
-      alert("Erro ao enviar lesão para análise.");
+    } catch {
+      toast.error("Não foi possível analisar a imagem. Verifique a conexão com a API e tente de novo.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Mapeamento Anatômico</h1>
-        <p className="text-sm text-muted-foreground mt-1">Selecione a região e registre o ponto da lesão</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        crumbs={[
+          { label: "Pacientes", to: "/patients" },
+          { label: pacienteNome || "Paciente", to: `/patients/${pacienteId}` },
+          { label: "Nova lesão" },
+        ]}
+        title="Registrar lesão"
+        description={pacienteNome ? `Paciente: ${pacienteNome}` : "Marque a lesão no corpo e envie a imagem"}
+        actions={
+          <ol className="flex items-center gap-2" aria-label="Etapas">
+            {etapas.map((e, i) => (
+              <li key={e.label} className="flex items-center gap-2">
+                <span
+                  className={`flex items-center gap-1.5 rounded-full pl-1 pr-3 py-1 text-xs font-medium ring-1 ring-inset ${
+                    e.ok ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : faltando === e ? "bg-primary/10 text-primary ring-primary/30" : "bg-card text-muted-foreground ring-border"
+                  }`}
+                >
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${e.ok ? "bg-emerald-500 text-white" : faltando === e ? "bg-primary text-white" : "bg-muted"}`}>
+                    {e.ok ? <Check className="w-3 h-3" /> : i + 1}
+                  </span>
+                  {e.label}
+                </span>
+                {i < etapas.length - 1 && <span className="w-4 h-px bg-border" />}
+              </li>
+            ))}
+          </ol>
+        }
+      />
 
-      <div className="flex h-[calc(100vh-200px)] overflow-hidden rounded-xl bg-card shadow-soft border border-border">
+      <div className="flex h-[calc(100vh-230px)] min-h-[560px] overflow-hidden rounded-2xl bg-card shadow-soft border border-border">
         <div
           className="w-3/5 relative border-r border-border"
           style={{ background: "linear-gradient(145deg, #64748b 0%, #475569 50%, #334155 100%)" }}
@@ -333,24 +313,57 @@ export default function AnatomicMapper() {
                 className="gap-1.5 shadow-surface border border-border"
               >
                 <ZoomOut className="w-3.5 h-3.5" />
-                Voltar
+                Corpo inteiro
               </Button>
             )}
           </div>
 
           {is3D && (
-            <div className="absolute bottom-4 left-4 z-10">
-              <div className="bg-card/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-surface border border-border">
+            <ViewControls
+              vertical
+              className="absolute top-4 right-4 z-10"
+              vista={vista}
+              onVista={irParaVista}
+              onZoom={zoom}
+              onReset={() => irParaVista("frente")}
+            />
+          )}
+
+          {is3D && !isZoomed && lesoesAnteriores.length > 0 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 rounded-lg bg-card/95 border border-border shadow-surface px-3 py-2 text-[11px] text-muted-foreground">
+              <p className="font-semibold text-foreground mb-1">{lesoesAnteriores.length} {lesoesAnteriores.length === 1 ? "lesão já registrada" : "lesões já registradas"}</p>
+              <p className="flex items-center gap-3">
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600" />alto</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" />médio</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />baixo</span>
+              </p>
+            </div>
+          )}
+
+          {is3D && !isZoomed && vista === "frente" && (
+            <>
+              <span className="absolute top-[62%] left-4 z-10 -translate-y-1/2 rounded-md bg-slate-900/60 px-2 py-1 text-[11px] font-semibold text-white" title="Lado direito do paciente">
+                D
+              </span>
+              <span className="absolute top-[62%] right-4 z-10 -translate-y-1/2 rounded-md bg-slate-900/60 px-2 py-1 text-[11px] font-semibold text-white" title="Lado esquerdo do paciente">
+                E
+              </span>
+            </>
+          )}
+
+          {is3D && (
+            <div className="absolute bottom-4 left-4 right-4 z-10 flex justify-between items-end gap-3 pointer-events-none">
+              <div className="bg-card/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-surface border border-border">
                 {isZoomed ? (
                   <div className="flex items-center gap-2">
                     <Circle className="w-3.5 h-3.5 text-destructive" />
                     <span className="text-xs font-medium text-foreground">
-                      Clique no ponto exato da lesão
+                      {selectedPoint ? "Ponto marcado. Clique de novo para ajustar." : "Clique no ponto exato da lesão"}
                     </span>
                   </div>
                 ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Clique em uma região para aproximar
+                  <span className="text-xs text-foreground">
+                    Clique na região · arraste para girar · D/E = lado do paciente
                   </span>
                 )}
               </div>
@@ -359,11 +372,7 @@ export default function AnatomicMapper() {
 
           {is3D ? (
             <div className="w-full h-full">
-              <Canvas camera={{ position: [0, 0.8, 3.2], fov: 50 }} gl={{ localClippingEnabled: true }}>
-                <ambientLight intensity={0.8} />
-                <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={0.5} />
-                <directionalLight position={[-5, 5, 5]} intensity={0.4} />
-                <directionalLight position={[5, 5, -5]} intensity={0.2} />
+              <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0.8, 3.2], fov: 50 }} gl={{ localClippingEnabled: true, antialias: true }}>
 
                 <CameraController
                   targetPosition={cameraPosition}
@@ -396,8 +405,8 @@ export default function AnatomicMapper() {
                     onMeshCenterFound={handleMeshCenterFound}
                   />
 
-                  <ContactShadows opacity={0.2} scale={10} blur={2.5} far={2} position={[0, -0.1, 0]} />
-                  <Environment preset="studio" />
+                  <LesionMarkers pins={lesoesAnteriores} onSelect={(lesaoId) => navigate(`/analysis/${lesaoId}`)} />
+                  <BodyStage />
                 </Suspense>
 
                 <OrbitControls
@@ -431,7 +440,7 @@ export default function AnatomicMapper() {
                         {group.parts.map((part) => (
                           <button
                             key={part}
-                            onClick={() => handleSelectZone(part)}
+                            onClick={() => handleSelectFromList(part)}
                             className={`text-left px-3 py-2 rounded-md text-sm transition-colors ${
                               selectedZone === part
                                 ? "bg-primary text-primary-foreground font-medium"
@@ -450,12 +459,24 @@ export default function AnatomicMapper() {
           )}
         </div>
 
-        <div className="w-2/5 p-6 flex flex-col bg-card overflow-y-auto">
-          <header className="mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Registro de Lesão</h2>
-            <p className="text-sm text-muted-foreground">
-              Local: <span className="font-medium text-primary">{selectedZone || "Nenhum selecionado"}</span>
-            </p>
+        <div className="w-2/5 p-6 flex flex-col bg-card overflow-y-auto relative">
+          {isSubmitting && (
+            <div className="absolute inset-0 z-20 bg-card/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-8" role="status" aria-live="polite">
+              <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+              <p className="font-semibold text-foreground">Analisando a imagem</p>
+              <p className="text-sm text-muted-foreground mt-1">EfficientNet-B3, ResNet50 e Swin-T estão avaliando a lesão. Leva poucos segundos.</p>
+            </div>
+          )}
+          <header className="mb-5">
+            <h2 className="text-lg font-semibold text-foreground">Dados da lesão</h2>
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Região:</span>
+              {selectedZone ? (
+                <span className="font-semibold text-primary">{selectedZone}</span>
+              ) : (
+                <span className="text-muted-foreground italic">clique no corpo ou escolha na lista</span>
+              )}
+            </div>
           </header>
 
           {points.length > 0 && (
@@ -513,11 +534,24 @@ export default function AnatomicMapper() {
               />
 
               {uploadedImage ? (
-                <img
-                  src={uploadedImage}
-                  alt="Lesão"
-                  className="w-full h-40 object-cover rounded-lg"
-                />
+                <div className="relative">
+                  <img
+                    src={uploadedImage}
+                    alt="Pré-visualização da lesão"
+                    className="w-full h-44 object-cover rounded-lg"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent rounded-b-lg px-3 py-2 text-left">
+                    <span className="text-xs text-white truncate flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5" />{selectedFile?.name}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); removerImagem(); }}
+                      className="text-white/90 hover:text-white bg-black/40 rounded-full p-1"
+                      aria-label="Remover imagem"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
                   <div className="mx-auto w-11 h-11 rounded-full bg-card shadow-surface flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
@@ -525,21 +559,22 @@ export default function AnatomicMapper() {
                   </div>
 
                   <p className="text-sm font-medium text-foreground">
-                    Upload da Imagem Dermatoscópica
+                    Imagem dermatoscópica
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Arraste ou clique para selecionar JPG ou PNG
+                    Arraste o arquivo ou clique para escolher (JPG, PNG ou WEBP, até 10 MB)
                   </p>
                 </>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Notas Clínicas
+              <Label htmlFor="notas" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Notas clínicas <span className="normal-case font-normal tracking-normal">(opcional)</span>
               </Label>
 
               <Textarea
+                id="notas"
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 className="min-h-[100px] text-sm resize-none"
@@ -548,14 +583,23 @@ export default function AnatomicMapper() {
             </div>
           </div>
 
-          <Button
-            disabled={!selectedZone || !selectedPoint || !selectedFile || isSubmitting}
-            className="mt-6 w-full h-11 font-semibold gap-2 shadow-lg"
-            onClick={handleSubmitAnalysis}
-          >
-            <BrainCircuit className="w-4 h-4" />
-            {isSubmitting ? "Enviando..." : "Enviar para Análise de IA"}
-          </Button>
+          <div className="mt-6 space-y-2">
+            {faltando && (
+              <p className="text-xs text-muted-foreground text-center">
+                {faltando.label === "Região" && "Para continuar, escolha a região do corpo."}
+                {faltando.label === "Ponto" && "Para continuar, clique no ponto exato da lesão no corpo."}
+                {faltando.label === "Imagem" && "Para continuar, envie a imagem dermatoscópica."}
+              </p>
+            )}
+            <Button
+              disabled={!!faltando || isSubmitting}
+              className="w-full h-11 font-semibold gap-2 shadow-lg"
+              onClick={handleSubmitAnalysis}
+            >
+              <BrainCircuit className="w-4 h-4" />
+              {isSubmitting ? "Analisando..." : "Analisar com IA"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
