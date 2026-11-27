@@ -42,3 +42,4 @@ class Lesao(Base):
     parecer_medico = Column(Text, nullable=True)
     criterios_abcde = Column(JSON, nullable=True)
     veredito_medico = Column(String(20), nullable=True)
+    resultado_ia = Column(JSON, nullable=True)

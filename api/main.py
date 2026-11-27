@@ -5,12 +5,17 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import inspect, text
 from database import engine, get_db, Base
-from models import Medico, Paciente, Lesao
+from db_models import Medico, Paciente, Lesao
 import bcrypt
 import os
 import shutil
-from ia_predict import prever_lesao
+from ia_ensemble import (
+    avaliar_imagem,
+    resposta_hard_voting,
+    resposta_soft_voting,
+)
 import uuid
 from fastapi.staticfiles import StaticFiles
 from typing import Dict
@@ -22,6 +27,20 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 Base.metadata.create_all(bind=engine)
+
+
+def _ensure_resultado_ia_column():
+    insp = inspect(engine)
+    if "lesoes" not in insp.get_table_names():
+        return
+    colunas = {c["name"] for c in insp.get_columns("lesoes")}
+    if "resultado_ia" not in colunas:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE lesoes ADD COLUMN resultado_ia JSON NULL"))
+            conn.commit()
+
+
+_ensure_resultado_ia_column()
 
 app = FastAPI(title="DermaScan AI API")
 UPLOAD_DIR = "uploads"
@@ -74,6 +93,39 @@ class LaudoLesaoRequest(BaseModel):
     parecer_medico: str
     criterios_abcde: Dict[str, bool]
     veredito_medico: str | None = None
+
+
+def _salvar_imagem_temporaria(imagem: UploadFile) -> str:
+    extensao = os.path.splitext(imagem.filename or "")[1] or ".jpg"
+    nome_arquivo = f"{uuid.uuid4()}{extensao}"
+    caminho = os.path.join(UPLOAD_DIR, nome_arquivo)
+    with open(caminho, "wb") as buffer:
+        shutil.copyfileobj(imagem.file, buffer)
+    return caminho
+
+
+def _resposta_lesao(lesao: Lesao, resultado_ia: dict | None = None) -> dict:
+    payload = {
+        "id": lesao.id,
+        "paciente_id": lesao.paciente_id,
+        "data": lesao.data,
+        "localizacao": lesao.localizacao,
+        "descricao": lesao.descricao,
+        "posicao": {
+            "x": lesao.posicao_x,
+            "y": lesao.posicao_y,
+            "z": lesao.posicao_z,
+        },
+        "imagem_path": lesao.imagem_path,
+        "classificacao": lesao.classificacao,
+        "risco": lesao.risco,
+        "confianca": lesao.confianca,
+        "parecer_medico": lesao.parecer_medico,
+        "criterios_abcde": lesao.criterios_abcde,
+        "veredito_medico": lesao.veredito_medico,
+        "resultado_ia": lesao.resultado_ia if resultado_ia is None else resultado_ia,
+    }
+    return payload
 
 
 @app.post("/register")
@@ -154,6 +206,29 @@ def obter_perfil_medico(db: Session = Depends(get_db), current_medico_id: int = 
     medico = db.query(Medico).filter(Medico.id == current_medico_id).first()
     return {"nome": medico.nome, "crm": medico.crm, "estado": medico.estado}
 
+
+@app.post("/ia/avaliar/hard-voting")
+async def avaliar_imagem_hard_voting(imagem: UploadFile = File(...)):
+    caminho = _salvar_imagem_temporaria(imagem)
+    try:
+        resultado = avaliar_imagem(caminho)
+        return resposta_hard_voting(resultado)
+    finally:
+        if os.path.isfile(caminho):
+            os.remove(caminho)
+
+
+@app.post("/ia/avaliar/soft-voting")
+async def avaliar_imagem_soft_voting(imagem: UploadFile = File(...)):
+    caminho = _salvar_imagem_temporaria(imagem)
+    try:
+        resultado = avaliar_imagem(caminho)
+        return resposta_soft_voting(resultado)
+    finally:
+        if os.path.isfile(caminho):
+            os.remove(caminho)
+
+
 @app.post("/lesoes/analisar")
 async def criar_lesao_com_ia(
     paciente_id: int = Form(...),
@@ -171,14 +246,10 @@ async def criar_lesao_com_ia(
     if not paciente:
         raise HTTPException(status_code=404, detail="Paciente não encontrado")
 
-    extensao = os.path.splitext(imagem.filename)[1]
-    nome_arquivo = f"{uuid.uuid4()}{extensao}"
-    caminho_imagem = os.path.join(UPLOAD_DIR, nome_arquivo)
+    caminho_imagem = _salvar_imagem_temporaria(imagem)
 
-    with open(caminho_imagem, "wb") as buffer:
-        shutil.copyfileobj(imagem.file, buffer)
-
-    resultado_ia = prever_lesao(caminho_imagem)
+    resultado_ia = avaliar_imagem(caminho_imagem)
+    consolidado_soft = resultado_ia["ensemble"]["soft"]
 
     nova_lesao = Lesao(
         data=data,
@@ -188,35 +259,21 @@ async def criar_lesao_com_ia(
         posicao_y=posicao_y,
         posicao_z=posicao_z,
         imagem_path=caminho_imagem,
-        classificacao=resultado_ia["classificacao"],
-        risco=resultado_ia["risco"],
-        confianca=resultado_ia["confianca"],
-        paciente_id=paciente_id
+        classificacao=consolidado_soft["classificacao"],
+        risco=consolidado_soft["risco"],
+        confianca=str(consolidado_soft["confianca"]),
+        paciente_id=paciente_id,
+        resultado_ia=resultado_ia,
     )
 
     db.add(nova_lesao)
     db.commit()
     db.refresh(nova_lesao)
     paciente.lesoes = db.query(Lesao).filter(Lesao.paciente_id == paciente_id).count()
-    paciente.risco = "ALTO RISCO" if resultado_ia["risco"] == "alto" else "BAIXO RISCO"
+    paciente.risco = "ALTO RISCO" if consolidado_soft["risco"] == "alto" else "BAIXO RISCO"
     db.commit()
 
-    return {
-        "id": nova_lesao.id,
-        "paciente_id": nova_lesao.paciente_id,
-        "data": nova_lesao.data,
-        "localizacao": nova_lesao.localizacao,
-        "descricao": nova_lesao.descricao,
-        "posicao": {
-            "x": nova_lesao.posicao_x,
-            "y": nova_lesao.posicao_y,
-            "z": nova_lesao.posicao_z
-        },
-        "imagem_path": nova_lesao.imagem_path,
-        "classificacao": nova_lesao.classificacao,
-        "risco": nova_lesao.risco,
-        "confianca": nova_lesao.confianca
-    }
+    return _resposta_lesao(nova_lesao)
 
 @app.get("/lesoes")
 def listar_lesoes(db: Session = Depends(get_db)):
@@ -235,7 +292,7 @@ def buscar_lesao(lesao_id: int, db: Session = Depends(get_db)):
     if not lesao:
         raise HTTPException(status_code=404, detail="Lesão não encontrada")
 
-    return lesao
+    return _resposta_lesao(lesao)
 
 @app.patch("/lesoes/{lesao_id}/laudo")
 def salvar_laudo_lesao(

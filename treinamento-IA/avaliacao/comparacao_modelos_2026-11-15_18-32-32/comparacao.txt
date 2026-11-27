@@ -1,0 +1,44 @@
+Dispositivo: cpu
+Teste: /tmp/teste
+Imagens: 952
+
+Parâmetros (não comparáveis entre arquiteturas; só o tamanho de cada rede)
+EfficientNet-B3: 10,699,306 parâmetros
+ResNet50: 23,512,130 parâmetros
+Swin-T: 27,520,892 parâmetros
+
+Visão dos três juntos
+Mesma classe prevista: 93.49% (890/952)
+Os três acertaram: 87.92% (837/952)
+Os três erraram: 5.57% (53/952)
+Pelo menos um acertou: 94.43% (899/952)
+Divergiram (ensemble pode mudar o voto): 6.51% (62/952)
+
+Pares
+
+EfficientNet-B3 x ResNet50
+Concordância de classe: 96.01%
+Kappa: 0.9201
+Correlação de P(maligno): 0.9709
+Jaccard dos erros: 0.6415
+Double-fault (os dois erram): 7.14%
+Q: 0.9876
+Ambos certos: 846 | ambos errados: 68 | só EfficientNet-B3: 18 | só ResNet50: 20
+
+EfficientNet-B3 x Swin-T
+Concordância de classe: 95.48%
+Kappa: 0.9096
+Correlação de P(maligno): 0.9718
+Jaccard dos erros: 0.5865
+Double-fault (os dois erram): 6.41%
+Q: 0.9834
+Ambos certos: 848 | ambos errados: 61 | só EfficientNet-B3: 16 | só Swin-T: 27
+
+ResNet50 x Swin-T
+Concordância de classe: 95.48%
+Kappa: 0.9096
+Correlação de P(maligno): 0.9635
+Jaccard dos erros: 0.5825
+Double-fault (os dois erram): 6.30%
+Q: 0.9828
+Ambos certos: 849 | ambos errados: 60 | só ResNet50: 17 | só Swin-T: 26
