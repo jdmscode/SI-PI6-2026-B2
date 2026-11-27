@@ -33,7 +33,7 @@ export function BodyPartMesh({
   const color = active ? activeColor : hovered ? hoverColor : baseColor;
 
   const renderGeometry = () => {
-    const a = args as any;
+    const a = args as number[];
     switch (geometry) {
       case "sphere":
         return <sphereGeometry args={[a[0], a[2] || 16, a[3] || 16]} />;
