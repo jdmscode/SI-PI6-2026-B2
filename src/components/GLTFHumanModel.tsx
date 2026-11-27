@@ -16,6 +16,38 @@ export interface CircleData {
 
 export type CombinedPartsMap = Record<string, { left: string; right: string }>;
 
+export const SKIN_TONE = "#e8cbb4";
+
+/**
+ * Copia a geometria mantendo só os triângulos cujo centro (em coordenadas do mundo)
+ * fica do lado pedido: esquerdo do paciente = x >= 0, direito = x < 0.
+ */
+function splitGeometry(geom: THREE.BufferGeometry, matrixWorld: THREE.Matrix4, ladoEsquerdo: boolean) {
+  const pos = geom.getAttribute("position");
+  const index = geom.getIndex();
+  const total = index ? index.count : pos.count;
+  const kept: number[] = [];
+  const v = new THREE.Vector3();
+
+  for (let i = 0; i < total; i += 3) {
+    let somaX = 0;
+    for (let k = 0; k < 3; k++) {
+      const vi = index ? index.getX(i + k) : i + k;
+      somaX += v.fromBufferAttribute(pos, vi).applyMatrix4(matrixWorld).x;
+    }
+    if (somaX >= 0 === ladoEsquerdo) {
+      for (let k = 0; k < 3; k++) kept.push(index ? index.getX(i + k) : i + k);
+    }
+  }
+
+  const g = geom.clone();
+  g.setIndex(kept);
+  g.clearGroups();
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+
 interface GLTFHumanModelProps {
   modelPath: string;
   selectedZone: string | null;
@@ -70,9 +102,18 @@ export function GLTFHumanModel({
   const originalMaterials = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
 
   const getDisplayName = useCallback(
-    (meshName: string, _point?: THREE.Vector3) => meshNameMap[meshName] || meshName,
+    (meshName: string) => meshNameMap[meshName] || meshName,
     [meshNameMap]
   );
+
+  // As metades _L/_R compartilham a geometria inteira; o recorte só existe na renderização.
+  // Por isso o raycast pode devolver a metade errada. O lado real vem da posição do clique.
+  const resolveMeshName = useCallback((mesh: THREE.Object3D, point: THREE.Vector3) => {
+    const isSplit = mesh.parent?.name.endsWith("_split") && /_(L|R)$/.test(mesh.name);
+    if (!isSplit) return mesh.name;
+    const base = mesh.name.slice(0, -2);
+    return point.x >= 0 ? `${base}_L` : `${base}_R`;
+  }, []);
 
   const reverseMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -102,26 +143,28 @@ export function GLTFHumanModel({
 
     const toSplit: THREE.Mesh[] = [];
 
+    // Material de pele: tom neutro, fosco, para a lesão marcada e o realce azul se destacarem.
+    const skin = (m: THREE.Material) => {
+      const c = m.clone() as THREE.MeshStandardMaterial;
+      c.color = new THREE.Color(SKIN_TONE);
+      c.roughness = 0.62;
+      c.metalness = 0.0;
+      c.envMapIntensity = 0.9;
+      return c;
+    };
+
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
 
         if (Array.isArray(mesh.material)) {
-          const cloned = mesh.material.map((m) => {
-            const c = m.clone();
-            (c as THREE.MeshStandardMaterial).roughness = 0.5;
-            (c as THREE.MeshStandardMaterial).metalness = 0.02;
-            return c;
-          });
-
+          const cloned = mesh.material.map(skin);
           originalMaterials.current.set(mesh.name, cloned.map((m) => m.clone()));
           mesh.material = cloned;
         } else {
-          const c = mesh.material.clone();
-
-          (c as THREE.MeshStandardMaterial).roughness = 0.5;
-          (c as THREE.MeshStandardMaterial).metalness = 0.02;
-
+          const c = skin(mesh.material);
           originalMaterials.current.set(mesh.name, c.clone());
           mesh.material = c;
         }
@@ -132,8 +175,12 @@ export function GLTFHumanModel({
       }
     });
 
-    const planeL = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
-    const planeR = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+    // O modelo está de frente para a câmera (+z): o lado ESQUERDO do paciente fica em x > 0
+    // e o DIREITO em x < 0. Cada plano mantém só a metade do seu lado.
+    const planeL = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+    const planeR = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
+
+    scene.updateMatrixWorld(true);
 
     for (const mesh of toSplit) {
       const baseName = mesh.name;
@@ -143,19 +190,16 @@ export function GLTFHumanModel({
 
       originalMaterials.current.delete(baseName);
 
-      const cloneMat = (m: THREE.Material) => {
-        const c = m.clone() as THREE.MeshStandardMaterial;
-        c.roughness = 0.5;
-        c.metalness = 0.02;
-        return c;
-      };
+      const cloneMat = (m: THREE.Material) => m.clone();
 
-      const geomL = mesh.geometry.clone();
-      const geomR = mesh.geometry.clone();
+      // Cada metade recebe só os triângulos do seu lado. Assim o raycast do clique
+      // acerta a metade certa (antes as duas tinham a geometria inteira e o clique se perdia).
+      const geomL = splitGeometry(mesh.geometry, mesh.matrixWorld, true);
+      const geomR = splitGeometry(mesh.geometry, mesh.matrixWorld, false);
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 
-      const matL = mats.length === 1 ? cloneMat(mats[0]) : mats.map(cloneMat);
-      const matR = mats.length === 1 ? cloneMat(mats[0]) : mats.map(cloneMat);
+      const matL = cloneMat(mats[0]);
+      const matR = cloneMat(mats[0]);
 
       const setClip = (m: THREE.Material, plane: THREE.Plane) => {
         (m as THREE.MeshStandardMaterial).clippingPlanes = [plane];
@@ -219,7 +263,13 @@ export function GLTFHumanModel({
         const matches = mesh.name === meshName || getDisplayName(mesh.name) === selectedZone;
 
         if (matches) {
-          combinedBox.union(new THREE.Box3().setFromObject(mesh));
+          const box = new THREE.Box3().setFromObject(mesh);
+          // Metades recortadas: limita a caixa ao lado visível, senão a câmera mira o meio do corpo.
+          if (mesh.parent?.name.endsWith("_split")) {
+            if (mesh.name.endsWith("_L")) box.min.x = Math.max(box.min.x, 0);
+            if (mesh.name.endsWith("_R")) box.max.x = Math.min(box.max.x, 0);
+          }
+          combinedBox.union(box);
           hasMatch = true;
         }
       }
@@ -297,20 +347,40 @@ export function GLTFHumanModel({
     const mesh = e.object as THREE.Mesh;
 
     if (mesh.isMesh && mesh.name) {
-      setHoveredMesh(mesh.name);
+      setHoveredMesh(resolveMeshName(mesh, e.point));
       setHoveredPosition(e.point.clone());
       document.body.style.cursor = isZoomed ? "crosshair" : "pointer";
     }
   };
 
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+  // Clique próprio: pointerdown + pointerup quase no mesmo pixel e em pouco tempo.
+  // O onClick do R3F descartava cliques nas partes pareadas (superfícies sobrepostas)
+  // e um arrasto para girar o modelo não deve virar seleção.
+  const pressRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    // timeStamp do próprio evento: não depende de quanto o navegador demorou para entregá-lo
+    pressRef.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY, t: e.nativeEvent.timeStamp };
+  };
+
+  const handlePointerUp = (e: ThreeEvent<PointerEvent>) => {
+    const press = pressRef.current;
+    pressRef.current = null;
+    if (!press) return;
+    const moved = Math.hypot(e.nativeEvent.clientX - press.x, e.nativeEvent.clientY - press.y);
+    if (moved > 6 || e.nativeEvent.timeStamp - press.t > 800) return;
+    handleClick(e);
+  };
+
+  const handleClick = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
 
     const mesh = e.object as THREE.Mesh;
 
     if (!mesh.isMesh || !mesh.name) return;
 
-    const displayName = getDisplayName(mesh.name, e.point);
+    const meshName = resolveMeshName(mesh, e.point);
+    const displayName = getDisplayName(meshName);
 
     if (!isZoomed || selectedZone !== displayName) {
       onSelectZone(displayName);
@@ -323,7 +393,7 @@ export function GLTFHumanModel({
       const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
       normal.applyMatrix3(normalMatrix).normalize();
 
-      onStartCircle(e.point.clone(), normal, mesh.name, displayName);
+      onStartCircle(e.point.clone(), normal, meshName, displayName);
     }
   };
 
@@ -337,7 +407,8 @@ export function GLTFHumanModel({
     <group ref={groupRef}>
       <primitive
         object={modelScene}
-        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
         onPointerMove={handlePointerMove}
         onPointerOver={handlePointerMove}
         onPointerOut={handlePointerOut}
@@ -372,7 +443,7 @@ export function GLTFHumanModel({
                 : "1px solid rgba(148, 163, 184, 0.2)",
             }}
           >
-            {isZoomed ? "Clique para marcar ponto" : getDisplayName(hoveredMesh, hoveredPosition || undefined)}
+            {isZoomed ? "Clique para marcar o ponto" : getDisplayName(hoveredMesh)}
           </div>
         </Html>
       )}

@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
+    --background: 220 33% 98%;
     --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
@@ -15,7 +15,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 221 83% 53%;
+    --primary: 224 76% 52%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
@@ -36,19 +36,19 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
+    --border: 220 20% 90%;
+    --input: 220 18% 86%;
     --ring: 221 83% 53%;
 
-    --radius: 0.75rem;
+    --radius: 0.85rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 221 83% 53%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 214 32% 91%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 214 32% 91%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 33% 17%;
     --sidebar-ring: 221 83% 53%;
 
     --shadow-soft: 0 0 0 1px rgba(0,0,0,.05), 0 2px 4px rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.05);
@@ -65,10 +65,44 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
 @layer utilities {
+  .bg-app {
+    background:
+      radial-gradient(1200px 500px at 100% -10%, hsl(var(--primary) / 0.07), transparent 60%),
+      hsl(var(--background));
+  }
+  .card-hover {
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-lifted);
+    transform: translateY(-1px);
+    border-color: hsl(var(--primary) / 0.25);
+  }
   .shadow-soft {
     box-shadow: var(--shadow-soft);
   }

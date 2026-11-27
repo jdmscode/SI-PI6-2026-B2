@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Activity, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Activity, AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -38,8 +39,7 @@ export default function Login() {
     setApiError("");
 
     try {
-      // Conecta com a rota /login da nossa API Python na porta 8000
-      const response = await fetch("http://localhost:8000/login", {
+      const response = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -54,18 +54,16 @@ export default function Login() {
       const result = await response.json();
 
       if (response.ok) {
-        console.log("Login aprovado pela API!", result);
         localStorage.setItem("access_token", result.access_token);
         localStorage.setItem("medico_id", result.medico_id); 
         localStorage.setItem("medico_nome", result.medico_nome);
         navigate("/dashboard");
       } else {
-        console.error("Erro na API:", result);
-        setApiError("Credenciais inválidas. Verifique seu CRM e senha.");
+        setApiError("CRM, UF ou senha não conferem. Confira os dados e tente de novo.");
       }
     } catch (error) {
       console.error("Erro ao conectar com a API:", error);
-      setApiError("Não foi possível conectar ao servidor. Tente novamente.");
+      setApiError("Servidor indisponível. Verifique se a API está rodando e tente de novo.");
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +74,7 @@ export default function Login() {
       {/* Left - Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img src={authHero} alt="Tecnologia médica" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/80 to-primary/40" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/85 via-blue-900/70 to-primary/50" />
         <div className="relative z-10 flex flex-col justify-end p-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -84,10 +82,10 @@ export default function Login() {
             transition={{ duration: 0.6, delay: 0.2 }}
           >
             <h2 className="text-3xl font-bold text-primary-foreground mb-3">
-              Inteligência Artificial<br />a serviço da Dermatologia
+              Mapeie lesões no corpo.<br />Receba uma segunda opinião da IA.
             </h2>
             <p className="text-primary-foreground/80 text-sm max-w-md leading-relaxed">
-              Apoio clínico avançado para identificação e acompanhamento de risco de melanoma com análise por redes neurais.
+              Três redes neurais analisam a imagem dermatoscópica. O laudo e a decisão continuam com você.
             </p>
           </motion.div>
         </div>
@@ -105,8 +103,8 @@ export default function Login() {
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
               <Activity className="w-6 h-6 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold text-foreground">DermaScan AI</h1>
-            <p className="text-sm text-muted-foreground mt-1">Acesse sua conta profissional</p>
+            <h1 className="text-2xl font-bold text-foreground">Entrar no DermaScan AI</h1>
+            <p className="text-sm text-muted-foreground mt-1">Use o CRM e a UF do seu registro profissional</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -116,7 +114,10 @@ export default function Login() {
               </Label>
               <Input
                 id="crm"
-                placeholder="000000"
+                placeholder="Somente números"
+                autoFocus
+                inputMode="numeric"
+                autoComplete="username"
                 {...register("crm", { required: "CRM obrigatório",
                   pattern: {
                     value: /^[0-9]+$/,
@@ -133,7 +134,7 @@ export default function Login() {
                 Estado (UF)
               </Label>
               <Select onValueChange={(v) => setValue("uf", v, { shouldValidate: true })}>
-                <SelectTrigger className="h-11">
+                <SelectTrigger id="uf" className="h-11">
                   <SelectValue placeholder="Selecione o estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,13 +154,15 @@ export default function Login() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="Sua senha"
+                  autoComplete="current-password"
                   {...register("password", { required: "Senha obrigatória" })}
                   className="h-11 pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -169,8 +172,9 @@ export default function Login() {
             </div>
 
             {apiError && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-                <p className="text-sm text-destructive text-center font-medium">{apiError}</p>
+              <div role="alert" className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-sm text-destructive font-medium">{apiError}</p>
               </div>
             )}
 

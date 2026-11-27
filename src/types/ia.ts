@@ -46,6 +46,10 @@ export interface AnaliseLesaoResponse {
   parecer_medico?: string | null;
   criterios_abcde?: Record<string, boolean> | null;
   veredito_medico?: string | null;
+  paciente_id?: number;
+  data?: string;
+  localizacao?: string;
+  descricao?: string;
 }
 
 export function parseConfianca(valor: number | string | undefined): number {
